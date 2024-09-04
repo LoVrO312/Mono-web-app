@@ -1,0 +1,180 @@
+---- drop tables
+DROP TABLE IF EXISTS ItemReceipt CASCADE;
+DROP TABLE IF EXISTS DiscountedItem CASCADE;
+DROP TABLE IF EXISTS Receipt CASCADE;
+DROP TABLE IF EXISTS CashRegisterShift CASCADE;
+DROP TABLE IF EXISTS EmployeeAccount CASCADE;
+DROP TABLE IF EXISTS Employee CASCADE;
+DROP TABLE IF EXISTS Position CASCADE;
+DROP TABLE IF EXISTS Store CASCADE;
+DROP TABLE IF EXISTS Item CASCADE;
+DROP TABLE IF EXISTS LoyaltyCard CASCADE;
+
+---- create tables
+CREATE TABLE Employee
+(
+    Id UUID PRIMARY KEY,
+	FirstName VARCHAR(50) NOT NULL,
+	LastName VARCHAR(50) NOT NULL,
+    StoreId UUID NOT NULL,
+    PositionId UUID NOT NULL
+);
+
+CREATE TABLE Position
+(
+    Id UUID PRIMARY KEY,
+    Name VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE EmployeeAccount
+(
+    Id UUID PRIMARY KEY,
+    Password VARCHAR(50) NOT NULL,
+    ShiftOpen BOOLEAN NOT NULL
+);
+
+CREATE TABLE CashRegisterShift
+(
+    Id UUID PRIMARY KEY,
+    EmployeeId UUID NOT NULL,
+    StartTime TIMESTAMP NOT NULL,
+    EndTime TIMESTAMP,
+    TotalCash DECIMAL(10, 2) NOT NULL,
+    TotalCard DECIMAL(10, 2) NOT NULL,
+    Deposit DECIMAL(10, 2) NOT NULL,
+    CashActualAmount DECIMAL(10, 2),
+    NumberOfReceipts INT NOT NULL
+);
+
+CREATE TABLE Store
+(
+    Id UUID PRIMARY KEY,
+    Name VARCHAR(255) NOT NULL,
+    Location VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE Receipt
+(
+    Id UUID PRIMARY KEY,
+    LoyaltyCardId UUID,
+    CashRegisterShiftId UUID NOT NULL,
+    PaymentMethod BOOLEAN NOT NULL, -- TRUE for cash, FALSE for card
+    Amount DECIMAL(10, 2) NOT NULL,
+    TimeOfPayment TIMESTAMP NOT NULL,
+    PointsMade INT NOT NULL
+);
+
+CREATE TABLE Item
+(
+    Id UUID PRIMARY KEY,
+    Price DECIMAL(10, 2) NOT NULL,
+    AllowedAmount VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE DiscountedItem
+(
+    Id UUID PRIMARY KEY,
+    PercentDiscount INT NOT NULL CHECK (PercentDiscount >= 1 AND PercentDiscount <= 100),
+    DiscountStartDate DATE NOT NULL,
+    DiscountEndDate DATE NOT NULL
+);
+
+CREATE TABLE LoyaltyCard
+(
+    Id UUID PRIMARY KEY,
+    FirstName VARCHAR(50) NOT NULL,
+    LastName VARCHAR(50) NOT NULL,
+    PhoneNumber VARCHAR(15) NOT NULL,
+    Points INT NOT NULL CHECK (Points >= 0)
+);
+
+CREATE TABLE ItemReceipt
+(
+    Id UUID PRIMARY KEY,
+    ReceiptId UUID,
+    ItemId UUID,
+    Amount INT
+);
+
+ALTER TABLE Employee
+ADD CONSTRAINT fk_employee_store FOREIGN KEY (StoreId) REFERENCES Store(Id),
+ADD CONSTRAINT fk_employee_position FOREIGN KEY (PositionId) REFERENCES Position(Id);
+
+ALTER TABLE EmployeeAccount
+ADD CONSTRAINT fk_employee_account FOREIGN KEY (Id) REFERENCES Employee(Id);
+
+ALTER TABLE CashRegisterShift
+ADD CONSTRAINT fk_cashregistershift_employee FOREIGN KEY (EmployeeId) REFERENCES Employee(Id);
+
+ALTER TABLE Receipt
+ADD CONSTRAINT fk_receipt_loyaltycard FOREIGN KEY (LoyaltyCardId) REFERENCES LoyaltyCard(Id),
+ADD CONSTRAINT fk_receipt_cashregistershift FOREIGN KEY (CashRegisterShiftId) REFERENCES CashRegisterShift(Id);
+
+ALTER TABLE DiscountedItem
+ADD CONSTRAINT fk_discounteditem_item FOREIGN KEY (Id) REFERENCES Item(Id);
+
+ALTER TABLE ItemReceipt
+ADD CONSTRAINT fk_itemreceipt_receipt FOREIGN KEY (ReceiptId) REFERENCES Receipt(Id),
+ADD CONSTRAINT fk_itemreceipt_item FOREIGN KEY (ItemId) REFERENCES Item(Id);
+
+
+-- CRUD
+INSERT INTO Position (Id, Name)
+VALUES
+	(gen_random_uuid(), 'Cashier'),
+	(gen_random_uuid(), 'Stocker'),
+	(gen_random_uuid(), 'Manager'),
+	(gen_random_uuid(), 'Quality Assurance');
+
+INSERT INTO Store (Id, Name, Location)
+VALUES
+	(gen_random_uuid(), 'Trgovina Orebić', 'Orebić'),
+	(gen_random_uuid(), 'Trgovina Trpanj', 'Trpanj');
+ 
+INSERT INTO Employee (Id, FirstName, LastName, StoreId, PositionId)
+VALUES
+	(gen_random_uuid(), 'Mirko', 'Mirić',(SELECT Id FROM Store WHERE Location = 'Orebić'), (SELECT Id FROM Position WHERE Name = 'Stocker')),
+	(gen_random_uuid(),'Marko', 'Marić',(SELECT Id FROM Store WHERE Location = 'Orebić'), (SELECT Id FROM Position WHERE Name = 'Cashier')),
+	(gen_random_uuid(),'Mirta', 'Matić',(SELECT Id FROM Store WHERE Location = 'Orebić'), (SELECT Id FROM Position WHERE Name = 'Manager'));
+
+-- Ensure uuid-ossp extension is enabled for UUID generation
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Insert 10 Cash Register Shifts
+-- Ensure the pgcrypto extension is enabled for UUID generation
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+INSERT INTO CashRegisterShift (Id, EmployeeId, StartTime, EndTime, TotalCash, TotalCard, Deposit, CashActualAmount, NumberOfReceipts)
+VALUES
+    (gen_random_uuid(), (SELECT Id FROM Employee LIMIT 1 OFFSET 0), '2024-09-01 08:00:00', '2024-09-01 16:00:00', 150.00, 200.00, 50.00, 100.00, 10),
+    (gen_random_uuid(), (SELECT Id FROM Employee LIMIT 1 OFFSET 1), '2024-09-01 16:00:00', '2024-09-01 23:59:59', 180.00, 220.00, 55.00, 110.00, 12),
+    (gen_random_uuid(), (SELECT Id FROM Employee LIMIT 1 OFFSET 2), '2024-09-02 08:00:00', '2024-09-02 16:00:00', 200.00, 250.00, 60.00, 120.00, 15),
+    (gen_random_uuid(), (SELECT Id FROM Employee LIMIT 1 OFFSET 0), '2024-09-02 16:00:00', '2024-09-02 23:59:59', 170.00, 210.00, 57.00, 115.00, 14),
+    (gen_random_uuid(), (SELECT Id FROM Employee LIMIT 1 OFFSET 1), '2024-09-03 08:00:00', '2024-09-03 16:00:00', 160.00, 205.00, 52.00, 105.00, 13),
+    (gen_random_uuid(), (SELECT Id FROM Employee LIMIT 1 OFFSET 2), '2024-09-03 16:00:00', '2024-09-03 23:59:59', 190.00, 230.00, 58.00, 120.00, 16),
+    (gen_random_uuid(), (SELECT Id FROM Employee LIMIT 1 OFFSET 0), '2024-09-04 08:00:00', '2024-09-04 16:00:00', 155.00, 215.00, 53.00, 108.00, 11),
+    (gen_random_uuid(), (SELECT Id FROM Employee LIMIT 1 OFFSET 1), '2024-09-04 16:00:00', '2024-09-04 23:59:59', 185.00, 225.00, 56.00, 112.00, 13),
+    (gen_random_uuid(), (SELECT Id FROM Employee LIMIT 1 OFFSET 2), '2024-09-05 08:00:00', '2024-09-05 16:00:00', 175.00, 220.00, 54.00, 109.00, 12),
+    (gen_random_uuid(), (SELECT Id FROM Employee LIMIT 1 OFFSET 0), '2024-09-05 16:00:00', '2024-09-05 23:59:59', 165.00, 210.00, 51.00, 106.00, 10);
+
+SELECT 
+    e.FirstName, 
+    e.LastName,
+	p.Name,
+    c.StartTime, 
+    c.EndTime
+FROM Employee e
+JOIN CashRegisterShift c -- (INNER) JOIN
+ON e.Id = c.EmployeeId
+JOIN Position p
+ON p.Id = e.PositionId;
+
+DELETE FROM CashRegisterShift WHERE TotalCash = 150;
+
+UPDATE Employee
+SET FirstName = 'Zadimir',
+	LastName = 'Kiljić'
+		WHERE FirstName = 'Mirko' AND LastName = 'Mirić'
+			AND StoreId = (SELECT Id FROM STORE WHERE Location = 'Orebić' LIMIT 1);
+
+SELECT * FROM Employee;
